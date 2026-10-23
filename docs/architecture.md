@@ -17,7 +17,7 @@
 - **Polling plutôt qu'événementiel** : plus simple et fiable pour un MVP ; le moteur est protégé contre les ticks concurrents. Le snapshot (positions/ordres/infos) est stocké en base et sert le dashboard.
 - **Node ≥ 22 + `node:sqlite`** : zéro dépendance native, migrations SQL versionnées (`schema_migrations`).
 - **Vanilla JS + Vite** : le dashboard est petit ; pas de framework pour rester simple. Toute donnée affichée est échappée (`esc`).
-- **Isolation MT5** : le package Python MetaTrader5 est Windows-only. Le backend parle donc à une interface `Mt5Provider`; `bridge` appelle un service HTTP à côté du terminal :
+- **Isolation MT5** : le package Python MetaTrader5 est Windows-only. Le backend parle donc à une interface `Mt5Provider`; `bridge` appelle un service HTTP à côté du terminal (implémentation de référence : `bridge/app.py`, FastAPI + MetaTrader5) :
   `POST /accounts/:login/connect|disconnect`, `GET /accounts/:login/info|positions|orders|history?days=|symbols/:s`, `POST /accounts/:login/orders`, `POST /accounts/:login/positions/:ticket/modify|close` (JSON, en-tête `Authorization` de type Bearer si `MT5_BRIDGE_TOKEN` est défini).
 - **Fiabilité** : chaque appel provider a un timeout et des retries (erreurs `transient` uniquement). `placeOrder` n'est jamais rejoué automatiquement.
 

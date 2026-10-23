@@ -56,6 +56,25 @@ Toutes les variables sont documentées dans [`backend/.env.example`](backend/.en
 - **Secrets MT5** : chiffrés au repos (AES-256-GCM) via `SECRET_KEY` (ou un fichier de clé généré dans `data/secret.key`, `chmod 600`). Ils ne sont jamais renvoyés par l'API.
 - **Garde-fous** : `dryRun` (activé par défaut : les règles et le copy trading sont seulement journalisés) et `killSwitch` (suspend toutes les automatisations) sont modifiables depuis le dashboard. Les actions manuelles restent possibles.
 
+## Connecter un vrai compte MT5 (bridge de référence)
+
+Le « bridge » est un petit service Python ([`bridge/`](bridge/app.py)) qui s'exécute **sur la machine Windows où est installé le terminal MetaTrader 5** (le paquet Python `MetaTrader5` n'existe que sous Windows). Le backend lui envoie des requêtes HTTP ; il les traduit en appels au terminal. Un terminal ne gère qu'un compte à la fois : le bridge sérialise les requêtes, donc pour piloter plusieurs comptes réels simultanément, lancez un terminal/bridge par compte (ou acceptez le basculement).
+
+1. Installez MetaTrader 5, connectez-vous une fois manuellement à votre broker, et activez _Outils → Options → Expert Advisors → Autoriser le trading algorithmique_.
+2. Installez Python 3.10+ (64 bits) puis :
+   ```
+   cd bridge
+   pip install -r requirements.txt
+   set BRIDGE_TOKEN=<openssl rand -hex 32>
+   python app.py
+   ```
+   Le bridge écoute sur `127.0.0.1:8765` (`BRIDGE_HOST` / `BRIDGE_PORT`). Il refuse de répondre sans `BRIDGE_TOKEN`.
+3. Backend : `MT5_BRIDGE_URL=http://127.0.0.1:8765` et `MT5_BRIDGE_TOKEN=<même token>`. Si le backend est sur une autre machine, exposez le bridge uniquement via un tunnel/VPN ou reverse proxy HTTPS (ne l'ouvrez jamais publiquement).
+4. Dashboard → Comptes MT5 → provider **bridge**, avec le login numérique, le **nom exact du serveur** du broker et le mot de passe du compte (idéalement d'abord un compte démo ou le mot de passe investor pour du lecture seule). Le statut passe à « connected » après la prochaine synchro (5 s) ; en cas d'erreur, elle est affichée dans la colonne « Erreur ».
+
+Tests du bridge (sans MT5, avec un faux module) : `cd bridge && pip install fastapi httpx pytest && pytest`.
+Le bridge n'a pas pu être validé contre un vrai terminal MT5 dans l'environnement de développement : testez d'abord sur un compte démo.
+
 ## Déploiement GitHub Pages
 
 1. Déployez le backend sur un hôte accessible en HTTPS (GitHub Pages ne peut pas l'héberger). Définissez `CORS_ORIGINS=https://<utilisateur>.github.io`.
@@ -73,18 +92,18 @@ L'URL de l'API peut aussi être modifiée sur l'écran de login. Limites : le si
 
 ## Fonctionnalités : état
 
-| Fonctionnalité                                                                                                                                                    | État                                                                                            |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| CRUD comptes, activation, santé/statut, multi-comptes                                                                                                             | ✅                                                                                              |
-| Positions, ordres, historique, close total/partiel, modify SL/TP, move to BE                                                                                      | ✅                                                                                              |
-| Règle BE (points/pips/argent, offset, filtres symbole/magic/commentaire, cooldown), global + par compte                                                           | ✅                                                                                              |
-| Auto TP/SL (distance pips/points, % risque, filtres symbole/magic/session, sans écrasement par défaut)                                                            | ✅                                                                                              |
-| Copy trading (ratio, min/max lot, filtre symboles, inverse, idempotence, anti-boucle, logs)                                                                       | ✅                                                                                              |
-| Dry-run, kill switch, rate limiting, logs structurés + corrélation, événements en base                                                                            | ✅                                                                                              |
-| Persistance SQLite + migrations, chiffrement des secrets                                                                                                          | ✅                                                                                              |
-| Dashboard (vue d'ensemble, comptes, trades, copy, règles, logs) + login                                                                                           | ✅ (polling 5 s, pas de websocket)                                                              |
-| Provider MT5 réel                                                                                                                                                 | ⚠️ client HTTP « bridge » fourni, bridge lui-même non fourni, non testé contre un vrai terminal |
-| Permissions fines par action / multi-utilisateurs                                                                                                                 | ❌                                                                                              |
-| Copy trading : modifications SL/TP et fermetures partielles de la source non répliquées ; copies en échec non rejouées (volontairement, pour éviter les doublons) | ⚠️                                                                                              |
+| Fonctionnalité                                                                                                                                                    | État                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| CRUD comptes, activation, santé/statut, multi-comptes                                                                                                             | ✅                                                                                                                      |
+| Positions, ordres, historique, close total/partiel, modify SL/TP, move to BE                                                                                      | ✅                                                                                                                      |
+| Règle BE (points/pips/argent, offset, filtres symbole/magic/commentaire, cooldown), global + par compte                                                           | ✅                                                                                                                      |
+| Auto TP/SL (distance pips/points, % risque, filtres symbole/magic/session, sans écrasement par défaut)                                                            | ✅                                                                                                                      |
+| Copy trading (ratio, min/max lot, filtre symboles, inverse, idempotence, anti-boucle, logs)                                                                       | ✅                                                                                                                      |
+| Dry-run, kill switch, rate limiting, logs structurés + corrélation, événements en base                                                                            | ✅                                                                                                                      |
+| Persistance SQLite + migrations, chiffrement des secrets                                                                                                          | ✅                                                                                                                      |
+| Dashboard (vue d'ensemble, comptes, trades, copy, règles, logs) + login                                                                                           | ✅ (polling 5 s, pas de websocket)                                                                                      |
+| Provider MT5 réel                                                                                                                                                 | ⚠️ client + bridge de référence fournis (`bridge/`), testés avec un faux module uniquement, pas contre un vrai terminal |
+| Permissions fines par action / multi-utilisateurs                                                                                                                 | ❌                                                                                                                      |
+| Copy trading : modifications SL/TP et fermetures partielles de la source non répliquées ; copies en échec non rejouées (volontairement, pour éviter les doublons) | ⚠️                                                                                                                      |
 
-Roadmap : bridge MT5 de référence, websocket/SSE, auth réelle + rôles, répliquer les modifications SL/TP, trailing stop, notifications (Telegram/email), tests e2e frontend, mapping de symboles entre brokers.
+Roadmap : websocket/SSE, auth réelle + rôles, répliquer les modifications SL/TP, trailing stop, notifications (Telegram/email), tests e2e frontend, mapping de symboles entre brokers.
