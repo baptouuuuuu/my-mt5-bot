@@ -1,0 +1,21 @@
+{
+  "name": "mt5-bot-backend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/server.js",
+    "worker": "node --disable-warning=ExperimentalWarning src/worker.js",
+    "migrate": "node --disable-warning=ExperimentalWarning src/migrate.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "zod": "^3.23.0"
+  }
+}
